@@ -149,6 +149,19 @@ class CosyVoiceFrontEnd:
                        'llm_embedding': embedding, 'flow_embedding': embedding}
         return model_input
 
+
+    def frontend_zero_shot_preprocess(self, tts_text, prompt_text_token, prompt_text_token_len, 
+                           speech_token, speech_token_len, speech_feat, speech_feat_len, embedding):
+        tts_text_token, tts_text_token_len = self._extract_text_token(tts_text)
+        model_input = {'text': tts_text_token, 'text_len': tts_text_token_len,
+                       'prompt_text': prompt_text_token, 'prompt_text_len': prompt_text_token_len,
+                       'llm_prompt_speech_token': speech_token, 'llm_prompt_speech_token_len': speech_token_len,
+                       'flow_prompt_speech_token': speech_token, 'flow_prompt_speech_token_len': speech_token_len,
+                       'prompt_speech_feat': speech_feat, 'prompt_speech_feat_len': speech_feat_len,
+                       'llm_embedding': embedding, 'flow_embedding': embedding}
+        return model_input
+
+
     def frontend_cross_lingual(self, tts_text, prompt_speech_16k):
         model_input = self.frontend_zero_shot(tts_text, '', prompt_speech_16k)
         # in cross lingual mode, we remove prompt in llm

@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import time
+import torchaudio
 from hyperpyyaml import load_hyperpyyaml
 from modelscope import snapshot_download
 from cosyvoice.cli.frontend import CosyVoiceFrontEnd
@@ -67,9 +68,57 @@ class CosyVoice:
             logging.info('synthesis text {}'.format(i))
             for model_output in self.model.inference(**model_input, stream=stream):
                 speech_len = model_output['tts_speech'].shape[1] / 22050
-                logging.info('yield speech len {}, rtf {}'.format(speech_len, (time.time() - start_time) / speech_len))
+                logging.info('yield speech len {}, rtf {}, cost time {}'.format(speech_len, (time.time() - start_time) / speech_len, time.time() - start_time))
                 yield model_output
                 start_time = time.time()
+
+
+    def inference_zero_shot_preprocess(self, tts_text, prompt_text, prompt_speech_16k, stream=False):
+        prompt_text = self.frontend.text_normalize(prompt_text, split=False)
+        preprocess_time = time.time()
+        prompt_text_token, prompt_text_token_len = self.frontend._extract_text_token(prompt_text)
+        prompt_speech_22050 = torchaudio.transforms.Resample(orig_freq=16000, new_freq=22050)(prompt_speech_16k)
+        speech_feat, speech_feat_len = self.frontend._extract_speech_feat(prompt_speech_22050)
+        speech_token, speech_token_len = self.frontend._extract_speech_token(prompt_speech_16k)
+        embedding = self.frontend._extract_spk_embedding(prompt_speech_16k)
+        logging.info('preprocess time {}'.format(time.time() - preprocess_time))
+
+
+        for i in self.frontend.text_normalize(tts_text, split=True):
+            # model_input = self.frontend.frontend_zero_shot(i, prompt_text, prompt_speech_16k)
+            model_input = self.frontend.frontend_zero_shot_preprocess(i, prompt_text_token, prompt_text_token_len, 
+                           speech_token, speech_token_len, speech_feat, speech_feat_len, embedding)
+            start_time = time.time()
+            logging.info('synthesis text {}'.format(i))
+            for model_output in self.model.inference(**model_input, stream=stream):
+                speech_len = model_output['tts_speech'].shape[1] / 22050
+                logging.info('yield speech len {}, rtf {}, cost time {}'.format(speech_len, (time.time() - start_time) / speech_len, time.time() - start_time))
+                yield model_output
+                start_time = time.time()
+    
+
+    def inference_zero_shot_preprocess_v2(self, tts_text, prompt_text, prompt_speech_16k, stream=False):
+        prompt_text = self.frontend.text_normalize(prompt_text, split=False)
+
+        prompt_text_token, prompt_text_token_len = self.frontend._extract_text_token(prompt_text)
+        prompt_speech_22050 = torchaudio.transforms.Resample(orig_freq=16000, new_freq=22050)(prompt_speech_16k)
+        speech_feat, speech_feat_len = self.frontend._extract_speech_feat(prompt_speech_22050)
+        speech_token, speech_token_len = self.frontend._extract_speech_token(prompt_speech_16k)
+        embedding = self.frontend._extract_spk_embedding(prompt_speech_16k)
+
+
+        for i in self.frontend.text_normalize(tts_text, split=True):
+            # model_input = self.frontend.frontend_zero_shot(i, prompt_text, prompt_speech_16k)
+            model_input = self.frontend.frontend_zero_shot_preprocess(i, prompt_text_token, prompt_text_token_len, 
+                           speech_token, speech_token_len, speech_feat, speech_feat_len, embedding)
+            start_time = time.time()
+            logging.info('synthesis text {}'.format(i))
+            for model_output in self.model.inference_v2(**model_input, stream=stream):
+                speech_len = model_output['tts_speech'].shape[1] / 22050
+                logging.info('yield speech len {}, rtf {}, cost time {}'.format(speech_len, (time.time() - start_time) / speech_len, time.time() - start_time))
+                yield model_output
+                start_time = time.time()
+
 
     def inference_cross_lingual(self, tts_text, prompt_speech_16k, stream=False):
         if self.frontend.instruct is True:
